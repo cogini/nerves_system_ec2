@@ -1,7 +1,7 @@
-defmodule NervesSystemX8664.MixProject do
+defmodule NervesSystemEc2.MixProject do
   use Mix.Project
 
-  @app :nerves_system_x86_64
+  @app :nerves_system_ec2
   @version Path.join(__DIR__, "VERSION")
            |> File.read!()
            |> String.trim()
@@ -26,7 +26,7 @@ defmodule NervesSystemX8664.MixProject do
   end
 
   defp bootstrap(args) do
-    System.put_env("MIX_TARGET", "x86_64")
+    System.put_env("MIX_TARGET", "ec2")
     Application.start(:nerves_bootstrap)
     Mix.Task.run("loadconfig", args)
   end
@@ -57,16 +57,16 @@ defmodule NervesSystemX8664.MixProject do
 
   defp description do
     """
-    Nerves System - x86_64
+    Nerves System - EC2
     """
   end
 
   defp package do
     [
-      maintainers: ["Frank Hunleth"],
+      maintainers: ["Jake Morrison"],
       files: package_files(),
       licenses: ["Apache 2.0"],
-      links: %{"Github" => "https://github.com/nerves-project/#{@app}"}
+      links: %{"Github" => "https://github.com/cogini/#{@app}"}
     ]
   end
 
