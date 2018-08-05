@@ -1,91 +1,94 @@
-# Generic x86_64 System
+# Nerves System for Amazon EC2
 
-[![CircleCI](https://circleci.com/gh/nerves-project/nerves_system_x86_64/tree/master.svg?style=svg)](https://circleci.com/gh/nerves-project/nerves_system_x86_64/tree/master)
-[![Hex version](https://img.shields.io/hexpm/v/nerves_system_x86_64.svg "Hex version")](https://hex.pm/packages/nerves_system_x86_64)
+This is a [Nerves](https://nerves-project.org/) system which runs in Amazon
+EC2. 
 
-This is the base Nerves System configuration for a generic x86_64 system.
+It is based on [nerves_system_x86_64](https://github.com/nerves-project/nerves_system_x86_64),
+adding the drivers needed for EC2 to the kernel and configuring the boot
+process for the EC2 environment.
 
-| Feature              | Description                     |
-| -------------------- | ------------------------------- |
-| CPU                  | Intel                           |
-| Memory               | 512 MB+ DRAM                    |
-| Storage              | Hard disk/SSD/etc. (/dev/sda)   |
-| Linux kernel         | 4.13                            |
-| IEx terminal         | Display - tty0                  |
-| Hardware I/O         | None                            |
-| Ethernet             | Yes                             |
+# Using
 
-Please contact us about this if you're really interested in it. We don't
-exercise it regularly except as a base for other x86_64 projects.
+In addition to this base system, you wil need to initialize your project.
+[nerves_init_ec2](https://github.com/cogini/nerves_init_ec2) brings up the
+base system, similar to [nerves_init_gadget](https://github.com/nerves-project/nerves_init_gadget).
+AWS provides [EC2 instance metadata](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html)
+to the running system, accessed via HTTP calls to a special IP address.
 
-## Using
+`nerves_init_ec2` uses this information at runtime to configure the instance.
+The most important part is configuring the ssh console to use the SSH
+[key pair](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html)
+to access the system remotely.
 
-The most common way of using this Nerves System is create a project with `mix
-nerves.new` and to export `MIX_TARGET=x86_64`. See the [Getting started
-guide](https://hexdocs.pm/nerves/getting-started.html#creating-a-new-nerves-app)
-for more information.
+[hello_nerves_ec2](https://github.com/cogini/hello_nerves_ec2) is an example
+project which uses `nerves_system_ec2` and `nerves_init_ec2`.
 
-If you need custom modifications to this system for your device, clone this
-repository and update as described in [Making custom
-systems](https://hexdocs.pm/nerves/systems.html#customizing-your-own-nerves-system)
+See the blog post [Running Nerves on Amazon EC2](https://www.cogini.com/blog/running-nerves-on-amazon-ec2/)
+for more details. 
 
-If you're new to Nerves, check out the
-[nerves_init_gadget](https://github.com/nerves-project/nerves_init_gadget)
-project for creating a starter project. It will get you started with the basics
-like bringing up networking, initializing the writable application data
-partition, and enabling ssh-based firmware updates.  It's easiest to begin by
-using the wired Ethernet interface 'eth0' and DHCP.
+# Creating nerves_system_ec2
 
-## Root disk naming
+I basically followed the [Nerves documentation for customizing the
+system](https://hexdocs.pm/nerves/systems.html#customizing-your-own-nerves-system).
 
-If you have multiple SSDs, or other devices connected, it's
-possible that Linux will enumerate those devices in a nondeterministic order.
-This can be mitigated by using `udev` to populate the `/dev/disks/by-*`
-directories, but even this can be inconvenient when you just want to refer to
-the drive that provides the root filesystem. To address this, `erlinit` creates
-`/dev/rootdisk0`, `/dev/rootdisk0p1`, etc. and symlinks them to the expected
-devices. For example, if your root file system is on `/dev/mmcblk0p1`, you'll
-get a symlink from `/dev/rootdisk0p1` to `/dev/mmcblk0p1` and the whole disk
-will be `/dev/rootdisk0`. Similarly, if the root filesystem is on `/dev/sdb1`,
-you'd still get `/dev/rootdisk0p1` and `/dev/rootdisk0` and they'd by symlinked
-to `/dev/sdb1` and `/dev/sdb` respectively.
+## Make a copy of nerves_system_x86_64 and modify it
 
-## Provisioning devices
-
-This system supports storing provisioning information in a small key-value store
-outside of any filesystem. Provisioning is an optional step and reasonable
-defaults are provided if this is missing.
-
-Provisioning information can be queried using the Nerves.Runtime KV store's
-[`Nerves.Runtime.KV.get/1`](https://hexdocs.pm/nerves_runtime/Nerves.Runtime.KV.html#get/1)
-function.
-
-Keys used by this system are:
-
-Key             | Example Value     | Description
-:-------------- | :---------------- | :----------
-`serial_number` | "1234578"`        | By default, this string is used to create unique hostnames and Erlang node names. If unset, it defaults to part of the Ethernet adapter's MAC address.
-
-The normal procedure would be to set these keys once in manufacturing or before
-deployment and then leave them alone.
-
-For example, to provision a serial number on a running device, run the following
-and reboot:
-
-```elixir
-iex> cmd("fw_setenv serial_number 1234")
+```shell
+git clone https://github.com/nerves-project/nerves_system_x86_64 nerves_system_ec2
+cd nerves_system_ec2/
+git remote rename origin upstream
+git remote add origin git@github.com:cogini/nerves_system_ec2.git
+git push origin master
 ```
 
-This system supports setting the serial number offline. To do this, set the
-`SERIAL_NUMBER` environment variable when burning the firmware. If you're
-programming MicroSD cards using `fwup`, the commandline is:
+## Configure the Nerves system
 
-```sh
-sudo SERIAL_NUMBER=1234 fwup path_to_firmware.fw
+```shell
+mix nerves.system.shell
+
+make menuconfig
+make savedefconfig
+
+make linux-menuconfig
+make linux-update-defconfig
 ```
 
-Serial numbers are stored on the MicroSD card so if the MicroSD card is
-replaced, the serial number will need to be reprogrammed. The numbers are stored
-in a U-boot environment block. This is a special region that is separate from
-the application partition so reformatting the application partition will not
-lose the serial number or any other data stored in this block.
+I used same kernel config as for my [minimal EC2 system with Buildroot](https://github.com/cogini/buildroot_ec2).
+
+## Modify the grub.cfg config
+
+The kernel options are the same as
+[nerves_system_x86_64](https://github.com/nerves-project/nerves_system_x86_64),
+with a few additions.
+
+Since we can't manually respond to a panic, we just reboot.
+
+    set cloud_opts=panic=1 boot.panic_on_fail
+
+Configure hardware options
+
+    # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/nvme-ebs-volumes.html#timeout-nvme-ebs-volumes
+    set hardware_opts=nvme.io_timeout=4294967295
+
+Set up a serial console, allowing output to be captured in text with "Actions |
+Instance Settings | Get System Log" or the AWS CLI command `aws ec2 get-console-output`.
+
+    set console_opts=console=tty1 console=ttyS0
+
+This is the resulting kernel command
+
+    linux (hd0,msdos2)/boot/bzImage root=PARTUUID=04030201-02 rootwait $console_opts $cloud_opts $hardware_opts
+
+## Modify /etc/erlinit.config
+
+Use the serial console:
+
+    -c ttyS0
+    -s "/usr/bin/nbtty"
+
+## Modify fwup.conf/fwup-revert.conf
+
+Reduce the size of the user filesystem to match the 1GB volume. In the cloud, we should not be storing
+data on the instance, everything should be in S3 or a database.
+
+    define(APP_PART_COUNT, 1013248)
